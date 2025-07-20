@@ -1,8 +1,8 @@
-# Anthropic API Proxy for Gemini & OpenAI Models 🔄
+# Anthropic API Proxy for OpenAI, Gemini, Groq & Moonshot Models 🔄
 
-**Use Anthropic clients (like Claude Code) with Gemini or OpenAI backends.** 🤝
+**Use Anthropic clients (like Claude Code) with OpenAI, Gemini, Groq, or Moonshot backends.** 🤝
 
-A proxy server that lets you use Anthropic clients with Gemini or OpenAI models via LiteLLM. 🌉
+A proxy server that lets you use Anthropic clients with OpenAI, Gemini, Groq, or Moonshot AI models via LiteLLM. 🌉
 
 
 ![Anthropic API Proxy](pic.png)
@@ -13,6 +13,8 @@ A proxy server that lets you use Anthropic clients with Gemini or OpenAI models 
 
 - OpenAI API key 🔑
 - Google AI Studio (Gemini) API key (if using Google provider) 🔑
+- Groq API key (if using Groq provider) 🔑
+- Moonshot AI API key (if using Moonshot provider) 🔑
 - [uv](https://github.com/astral-sh/uv) installed.
 
 ### Setup 🛠️
@@ -39,13 +41,17 @@ A proxy server that lets you use Anthropic clients with Gemini or OpenAI models 
    *   `ANTHROPIC_API_KEY`: (Optional) Needed only if proxying *to* Anthropic models.
    *   `OPENAI_API_KEY`: Your OpenAI API key (Required if using the default OpenAI preference or as fallback).
    *   `GEMINI_API_KEY`: Your Google AI Studio (Gemini) API key (Required if PREFERRED_PROVIDER=google).
-   *   `PREFERRED_PROVIDER` (Optional): Set to `openai` (default) or `google`. This determines the primary backend for mapping `haiku`/`sonnet`.
-   *   `BIG_MODEL` (Optional): The model to map `sonnet` requests to. Defaults to `gpt-4.1` (if `PREFERRED_PROVIDER=openai`) or `gemini-2.5-pro-preview-03-25`.
-   *   `SMALL_MODEL` (Optional): The model to map `haiku` requests to. Defaults to `gpt-4.1-mini` (if `PREFERRED_PROVIDER=openai`) or `gemini-2.0-flash`.
+   *   `GROQ_API_KEY`: Your Groq API key (Required if PREFERRED_PROVIDER=groq).
+   *   `MOONSHOT_API_KEY`: Your Moonshot AI API key (Required if PREFERRED_PROVIDER=moonshot).
+   *   `PREFERRED_PROVIDER` (Optional): Set to `openai` (default), `google`, `groq`, or `moonshot`. This determines the primary backend for mapping `haiku`/`sonnet`.
+   *   `BIG_MODEL` (Optional): The model to map `sonnet` requests to. Defaults vary by provider - see mapping logic below.
+   *   `SMALL_MODEL` (Optional): The model to map `haiku` requests to. Defaults vary by provider - see mapping logic below.
 
    **Mapping Logic:**
-   - If `PREFERRED_PROVIDER=openai` (default), `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` prefixed with `openai/`.
-   - If `PREFERRED_PROVIDER=google`, `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` prefixed with `gemini/` *if* those models are in the server's known `GEMINI_MODELS` list (otherwise falls back to OpenAI mapping).
+   - If `PREFERRED_PROVIDER=openai` (default), `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` (defaults: `gpt-4.1-mini`/`gpt-4.1`) prefixed with `openai/`.
+   - If `PREFERRED_PROVIDER=google`, `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` (defaults: `gemini-2.0-flash`/`gemini-2.5-pro-preview-03-25`) prefixed with `gemini/`.
+   - If `PREFERRED_PROVIDER=groq`, `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` (defaults: `llama-3.1-8b-instant`/`llama-3.3-70b-versatile`) prefixed with `groq/`.
+   - If `PREFERRED_PROVIDER=moonshot`, `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` (defaults: `kimi-k2-base`/`kimi-k2-instruct`) prefixed with `moonshot/`.
 
 4. **Run the server**:
    ```bash
@@ -65,16 +71,16 @@ A proxy server that lets you use Anthropic clients with Gemini or OpenAI models 
    ANTHROPIC_BASE_URL=http://localhost:8082 claude
    ```
 
-3. **That's it!** Your Claude Code client will now use the configured backend models (defaulting to Gemini) through the proxy. 🎯
+3. **That's it!** Your Claude Code client will now use the configured backend models (defaulting to OpenAI) through the proxy. 🎯
 
 ## Model Mapping 🗺️
 
-The proxy automatically maps Claude models to either OpenAI or Gemini models based on the configured model:
+The proxy automatically maps Claude models to OpenAI, Gemini, Groq, or Moonshot models based on the configured provider:
 
-| Claude Model | Default Mapping | When BIG_MODEL/SMALL_MODEL is a Gemini model |
-|--------------|--------------|---------------------------|
-| haiku | openai/gpt-4o-mini | gemini/[model-name] |
-| sonnet | openai/gpt-4o | gemini/[model-name] |
+| Claude Model | OpenAI (default) | Google | Groq | Moonshot |
+|--------------|------------------|--------|------|----------|
+| haiku | openai/gpt-4.1-mini | gemini/gemini-2.0-flash | groq/llama-3.1-8b-instant | moonshot/kimi-k2-base |
+| sonnet | openai/gpt-4.1 | gemini/gemini-2.5-pro-preview-03-25 | groq/llama-3.3-70b-versatile | moonshot/kimi-k2-instruct |
 
 ### Supported Models
 
@@ -98,16 +104,50 @@ The following Gemini models are supported with automatic `gemini/` prefix handli
 - gemini-2.5-pro-preview-03-25
 - gemini-2.0-flash
 
+#### Groq Models  
+The following Groq models are supported with automatic `groq/` prefix handling:
+- llama-3.3-70b-versatile (Production)
+- llama-3.1-8b-instant (Production) 
+- llama3-70b-8192 (Production)
+- llama3-8b-8192 (Production)
+- gemma2-9b-it (Production)
+- whisper-large-v3 (Production - Audio)
+- whisper-large-v3-turbo (Production - Audio)
+- distil-whisper-large-v3-en (Production - Audio)
+- llama-guard-3-8b (Production - Safety)
+- meta-llama/llama-4-scout-17b-16e-instruct (Preview)
+- meta-llama/llama-4-maverick-17b-128e-instruct (Preview)
+- qwen-qwq-32b (Preview)
+- qwen-2.5-coder-32b (Preview)
+- qwen-2.5-32b (Preview)
+- deepseek-r1-distill-qwen-32b (Preview)
+- deepseek-r1-distill-llama-70b (Preview)
+- mistral-saba-24b (Preview)
+- llama-3.2-1b-preview (Preview)
+- llama-3.2-3b-preview (Preview)
+- llama-3.2-11b-vision-preview (Preview - Vision)
+- llama-3.2-90b-vision-preview (Preview - Vision)
+- llama-3.3-70b-specdec (Preview)
+
+#### Moonshot AI (Kimi K2) Models
+The following Moonshot models are supported with automatic `moonshot/` prefix handling:
+- kimi-k2-base
+- kimi-k2-instruct
+
 ### Model Prefix Handling
 The proxy automatically adds the appropriate prefix to model names:
 - OpenAI models get the `openai/` prefix 
 - Gemini models get the `gemini/` prefix
-- The BIG_MODEL and SMALL_MODEL will get the appropriate prefix based on whether they're in the OpenAI or Gemini model lists
+- Groq models get the `groq/` prefix
+- Moonshot models get the `moonshot/` prefix
+- The BIG_MODEL and SMALL_MODEL will get the appropriate prefix based on which model list they're in
 
 For example:
-- `gpt-4o` becomes `openai/gpt-4o`
+- `gpt-4.1` becomes `openai/gpt-4.1`
 - `gemini-2.5-pro-preview-03-25` becomes `gemini/gemini-2.5-pro-preview-03-25`
-- When BIG_MODEL is set to a Gemini model, Claude Sonnet will map to `gemini/[model-name]`
+- `llama-3.3-70b-versatile` becomes `groq/llama-3.3-70b-versatile`
+- `kimi-k2-instruct` becomes `moonshot/kimi-k2-instruct`
+- When BIG_MODEL is set to a specific provider's model, Claude Sonnet will map to `[provider]/[model-name]`
 
 ### Customizing Model Mapping
 
@@ -132,10 +172,27 @@ PREFERRED_PROVIDER="google"
 # SMALL_MODEL="gemini-2.0-flash" # Optional, it's the default for Google pref
 ```
 
-**Example 3: Use Specific OpenAI Models**
+**Example 3: Use Groq Models**
+```dotenv
+GROQ_API_KEY="your-groq-key"
+OPENAI_API_KEY="your-openai-key" # Needed for fallback
+PREFERRED_PROVIDER="groq"
+# BIG_MODEL="llama-3.3-70b-versatile" # Optional, it's the default for Groq
+# SMALL_MODEL="llama-3.1-8b-instant" # Optional, it's the default for Groq
+```
+
+**Example 4: Use Moonshot AI Models**
+```dotenv
+MOONSHOT_API_KEY="your-moonshot-key"
+OPENAI_API_KEY="your-openai-key" # Needed for fallback
+PREFERRED_PROVIDER="moonshot"
+# BIG_MODEL="kimi-k2-instruct" # Optional, it's the default for Moonshot
+# SMALL_MODEL="kimi-k2-base" # Optional, it's the default for Moonshot
+```
+
+**Example 5: Use Specific OpenAI Models**
 ```dotenv
 OPENAI_API_KEY="your-openai-key"
-GEMINI_API_KEY="your-google-key"
 PREFERRED_PROVIDER="openai"
 BIG_MODEL="gpt-4o" # Example specific model
 SMALL_MODEL="gpt-4o-mini" # Example specific model
@@ -146,8 +203,8 @@ SMALL_MODEL="gpt-4o-mini" # Example specific model
 This proxy works by:
 
 1. **Receiving requests** in Anthropic's API format 📥
-2. **Translating** the requests to OpenAI format via LiteLLM 🔄
-3. **Sending** the translated request to OpenAI 📤
+2. **Translating** the requests to the target provider format via LiteLLM 🔄
+3. **Sending** the translated request to OpenAI, Gemini, Groq, or Moonshot 📤
 4. **Converting** the response back to Anthropic format 🔄
 5. **Returning** the formatted response to the client ✅
 

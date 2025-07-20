@@ -81,14 +81,30 @@ app = FastAPI()
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+MOONSHOT_API_KEY = os.environ.get("MOONSHOT_API_KEY")
 
 # Get preferred provider (default to openai)
 PREFERRED_PROVIDER = os.environ.get("PREFERRED_PROVIDER", "openai").lower()
 
+# Helper function to get default models based on provider
+def get_default_models(preferred_provider):
+    """Get default BIG_MODEL and SMALL_MODEL based on preferred provider"""
+    if preferred_provider == "google":
+        return "gemini-2.5-pro-preview-03-25", "gemini-2.0-flash"
+    elif preferred_provider == "groq":
+        return "llama-3.3-70b-versatile", "llama-3.1-8b-instant"
+    elif preferred_provider == "moonshot":
+        return "kimi-k2-instruct", "kimi-k2-base"  
+    else:  # openai default
+        return "gpt-4.1", "gpt-4.1-mini"
+
+# Get model defaults
+default_big, default_small = get_default_models(PREFERRED_PROVIDER)
+
 # Get model mapping configuration from environment
-# Default to latest OpenAI models if not set
-BIG_MODEL = os.environ.get("BIG_MODEL", "gpt-4.1")
-SMALL_MODEL = os.environ.get("SMALL_MODEL", "gpt-4.1-mini")
+BIG_MODEL = os.environ.get("BIG_MODEL", default_big)
+SMALL_MODEL = os.environ.get("SMALL_MODEL", default_small)
 
 # List of OpenAI models
 OPENAI_MODELS = [
@@ -110,6 +126,40 @@ OPENAI_MODELS = [
 GEMINI_MODELS = [
     "gemini-2.5-pro-preview-03-25",
     "gemini-2.0-flash"
+]
+
+# List of Groq models
+GROQ_MODELS = [
+    # Production Models
+    "llama-3.3-70b-versatile", 
+    "llama-3.1-8b-instant",
+    "llama3-70b-8192",
+    "llama3-8b-8192", 
+    "gemma2-9b-it",
+    "whisper-large-v3",
+    "whisper-large-v3-turbo",
+    "distil-whisper-large-v3-en",
+    "llama-guard-3-8b",
+    # Preview Models
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "meta-llama/llama-4-maverick-17b-128e-instruct", 
+    "qwen-qwq-32b",
+    "qwen-2.5-coder-32b",
+    "qwen-2.5-32b",
+    "deepseek-r1-distill-qwen-32b",
+    "deepseek-r1-distill-llama-70b",
+    "mistral-saba-24b",
+    "llama-3.2-1b-preview",
+    "llama-3.2-3b-preview", 
+    "llama-3.2-11b-vision-preview",
+    "llama-3.2-90b-vision-preview",
+    "llama-3.3-70b-specdec"
+]
+
+# List of Moonshot models
+MOONSHOT_MODELS = [
+    "kimi-k2-base",
+    "kimi-k2-instruct"
 ]
 
 # Helper function to clean schema for Gemini
@@ -202,6 +252,10 @@ class MessagesRequest(BaseModel):
             clean_v = clean_v[7:]
         elif clean_v.startswith('gemini/'):
             clean_v = clean_v[7:]
+        elif clean_v.startswith('groq/'):
+            clean_v = clean_v[5:]
+        elif clean_v.startswith('moonshot/'):
+            clean_v = clean_v[9:]
 
         # --- Mapping Logic --- START ---
         mapped = False
@@ -209,23 +263,35 @@ class MessagesRequest(BaseModel):
         if 'haiku' in clean_v.lower():
             if PREFERRED_PROVIDER == "google" and SMALL_MODEL in GEMINI_MODELS:
                 new_model = f"gemini/{SMALL_MODEL}"
-                mapped = True
+            elif PREFERRED_PROVIDER == "groq" and SMALL_MODEL in GROQ_MODELS:
+                new_model = f"groq/{SMALL_MODEL}"
+            elif PREFERRED_PROVIDER == "moonshot" and SMALL_MODEL in MOONSHOT_MODELS:
+                new_model = f"moonshot/{SMALL_MODEL}"
             else:
                 new_model = f"openai/{SMALL_MODEL}"
-                mapped = True
+            mapped = True
 
         # Map Sonnet to BIG_MODEL based on provider preference
         elif 'sonnet' in clean_v.lower():
             if PREFERRED_PROVIDER == "google" and BIG_MODEL in GEMINI_MODELS:
                 new_model = f"gemini/{BIG_MODEL}"
-                mapped = True
+            elif PREFERRED_PROVIDER == "groq" and BIG_MODEL in GROQ_MODELS:
+                new_model = f"groq/{BIG_MODEL}"
+            elif PREFERRED_PROVIDER == "moonshot" and BIG_MODEL in MOONSHOT_MODELS:
+                new_model = f"moonshot/{BIG_MODEL}"
             else:
                 new_model = f"openai/{BIG_MODEL}"
-                mapped = True
+            mapped = True
 
         # Add prefixes to non-mapped models if they match known lists
         elif not mapped:
-            if clean_v in GEMINI_MODELS and not v.startswith('gemini/'):
+            if clean_v in GROQ_MODELS and not v.startswith('groq/'):
+                new_model = f"groq/{clean_v}"
+                mapped = True # Technically mapped to add prefix
+            elif clean_v in MOONSHOT_MODELS and not v.startswith('moonshot/'):
+                new_model = f"moonshot/{clean_v}"
+                mapped = True # Technically mapped to add prefix
+            elif clean_v in GEMINI_MODELS and not v.startswith('gemini/'):
                 new_model = f"gemini/{clean_v}"
                 mapped = True # Technically mapped to add prefix
             elif clean_v in OPENAI_MODELS and not v.startswith('openai/'):
@@ -237,7 +303,7 @@ class MessagesRequest(BaseModel):
             logger.debug(f"📌 MODEL MAPPING: '{original_model}' ➡️ '{new_model}'")
         else:
              # If no mapping occurred and no prefix exists, log warning or decide default
-             if not v.startswith(('openai/', 'gemini/', 'anthropic/')):
+             if not v.startswith(('openai/', 'gemini/', 'anthropic/', 'groq/', 'moonshot/')):
                  logger.warning(f"⚠️ No prefix or mapping rule for model: '{original_model}'. Using as is.")
              new_model = v # Ensure we return the original if no rule applied
 
@@ -275,6 +341,10 @@ class TokenCountRequest(BaseModel):
             clean_v = clean_v[7:]
         elif clean_v.startswith('gemini/'):
             clean_v = clean_v[7:]
+        elif clean_v.startswith('groq/'):
+            clean_v = clean_v[5:]
+        elif clean_v.startswith('moonshot/'):
+            clean_v = clean_v[9:]
 
         # --- Mapping Logic --- START ---
         mapped = False
@@ -282,23 +352,35 @@ class TokenCountRequest(BaseModel):
         if 'haiku' in clean_v.lower():
             if PREFERRED_PROVIDER == "google" and SMALL_MODEL in GEMINI_MODELS:
                 new_model = f"gemini/{SMALL_MODEL}"
-                mapped = True
+            elif PREFERRED_PROVIDER == "groq" and SMALL_MODEL in GROQ_MODELS:
+                new_model = f"groq/{SMALL_MODEL}"
+            elif PREFERRED_PROVIDER == "moonshot" and SMALL_MODEL in MOONSHOT_MODELS:
+                new_model = f"moonshot/{SMALL_MODEL}"
             else:
                 new_model = f"openai/{SMALL_MODEL}"
-                mapped = True
+            mapped = True
 
         # Map Sonnet to BIG_MODEL based on provider preference
         elif 'sonnet' in clean_v.lower():
             if PREFERRED_PROVIDER == "google" and BIG_MODEL in GEMINI_MODELS:
                 new_model = f"gemini/{BIG_MODEL}"
-                mapped = True
+            elif PREFERRED_PROVIDER == "groq" and BIG_MODEL in GROQ_MODELS:
+                new_model = f"groq/{BIG_MODEL}"
+            elif PREFERRED_PROVIDER == "moonshot" and BIG_MODEL in MOONSHOT_MODELS:
+                new_model = f"moonshot/{BIG_MODEL}"
             else:
                 new_model = f"openai/{BIG_MODEL}"
-                mapped = True
+            mapped = True
 
         # Add prefixes to non-mapped models if they match known lists
         elif not mapped:
-            if clean_v in GEMINI_MODELS and not v.startswith('gemini/'):
+            if clean_v in GROQ_MODELS and not v.startswith('groq/'):
+                new_model = f"groq/{clean_v}"
+                mapped = True # Technically mapped to add prefix
+            elif clean_v in MOONSHOT_MODELS and not v.startswith('moonshot/'):
+                new_model = f"moonshot/{clean_v}"
+                mapped = True # Technically mapped to add prefix
+            elif clean_v in GEMINI_MODELS and not v.startswith('gemini/'):
                 new_model = f"gemini/{clean_v}"
                 mapped = True # Technically mapped to add prefix
             elif clean_v in OPENAI_MODELS and not v.startswith('openai/'):
@@ -309,7 +391,7 @@ class TokenCountRequest(BaseModel):
         if mapped:
             logger.debug(f"📌 TOKEN COUNT MAPPING: '{original_model}' ➡️ '{new_model}'")
         else:
-             if not v.startswith(('openai/', 'gemini/', 'anthropic/')):
+             if not v.startswith(('openai/', 'gemini/', 'anthropic/', 'groq/', 'moonshot/')):
                  logger.warning(f"⚠️ No prefix or mapping rule for token count model: '{original_model}'. Using as is.")
              new_model = v # Ensure we return the original if no rule applied
 
@@ -1110,15 +1192,21 @@ async def create_message(
         elif request.model.startswith("gemini/"):
             litellm_request["api_key"] = GEMINI_API_KEY
             logger.debug(f"Using Gemini API key for model: {request.model}")
+        elif request.model.startswith("groq/"):
+            litellm_request["api_key"] = GROQ_API_KEY
+            logger.debug(f"Using Groq API key for model: {request.model}")
+        elif request.model.startswith("moonshot/"):
+            litellm_request["api_key"] = MOONSHOT_API_KEY
+            logger.debug(f"Using Moonshot API key for model: {request.model}")
         else:
             litellm_request["api_key"] = ANTHROPIC_API_KEY
             logger.debug(f"Using Anthropic API key for model: {request.model}")
         
-        # For OpenAI models - modify request format to work with limitations
-        if "openai" in litellm_request["model"] and "messages" in litellm_request:
-            logger.debug(f"Processing OpenAI model request: {litellm_request['model']}")
+        # For non-Anthropic models - modify request format to work with limitations
+        if not request.model.startswith("anthropic/") and "messages" in litellm_request:
+            logger.debug(f"Processing non-Anthropic model request: {litellm_request['model']}")
             
-            # For OpenAI models, we need to convert content blocks to simple strings
+            # For non-Anthropic models, we need to convert content blocks to simple strings
             # and handle other requirements
             for i, msg in enumerate(litellm_request["messages"]):
                 # Special case - handle message content directly when it's a list of tool_result
@@ -1223,7 +1311,7 @@ async def create_message(
                                 elif block.get("type") == "image":
                                     text_content += "[Image content - not displayed in text format]\n"
                         
-                        # Make sure content is never empty for OpenAI models
+                        # Make sure content is never empty for non-Anthropic models
                         if not text_content.strip():
                             text_content = "..."
                         
@@ -1232,7 +1320,7 @@ async def create_message(
                     elif msg["content"] is None:
                         litellm_request["messages"][i]["content"] = "..." # Empty content not allowed
                 
-                # 2. Remove any fields OpenAI doesn't support in messages
+                # 2. Remove any fields that non-Anthropic models don't support in messages
                 for key in list(msg.keys()):
                     if key not in ["role", "content", "name", "tool_call_id", "tool_calls"]:
                         logger.warning(f"Removing unsupported field from message: {key}")
