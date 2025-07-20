@@ -1,11 +1,3 @@
-# Anthropic API Proxy for OpenAI, Gemini, Groq & Moonshot Models 🔄
-
-**Use Anthropic clients (like Claude Code) with OpenAI, Gemini, Groq, or Moonshot backends.** 🤝
-
-A proxy server that lets you use Anthropic clients with OpenAI, Gemini, Groq, or Moonshot AI models via LiteLLM. 🌉
-
-
-![Anthropic API Proxy](pic.png)
 
 # Anthropic Universal API Proxy
 
