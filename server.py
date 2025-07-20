@@ -139,6 +139,7 @@ GROQ_MODELS = [
     "whisper-large-v3",
     "whisper-large-v3-turbo",
     "distil-whisper-large-v3-en",
+    "moonshotai/kimi-k2-instruct",
     "llama-guard-3-8b",
     # Preview Models
     "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -238,81 +239,40 @@ class MessagesRequest(BaseModel):
     original_model: Optional[str] = None  # Will store the original model name
     
     @field_validator('model')
-    def validate_model_field(cls, v, info): # Renamed to avoid conflict
+    def validate_model_field(cls, v, info):
         original_model = v
-        new_model = v # Default to original value
-
-        logger.debug(f"📋 MODEL VALIDATION: Original='{original_model}', Preferred='{PREFERRED_PROVIDER}', BIG='{BIG_MODEL}', SMALL='{SMALL_MODEL}'")
-
-        # Remove provider prefixes for easier matching
-        clean_v = v
-        if clean_v.startswith('anthropic/'):
-            clean_v = clean_v[10:]
-        elif clean_v.startswith('openai/'):
-            clean_v = clean_v[7:]
-        elif clean_v.startswith('gemini/'):
-            clean_v = clean_v[7:]
-        elif clean_v.startswith('groq/'):
-            clean_v = clean_v[5:]
-        elif clean_v.startswith('moonshot/'):
-            clean_v = clean_v[9:]
-
-        # --- Mapping Logic --- START ---
-        mapped = False
-        # Map Haiku to SMALL_MODEL based on provider preference
-        if 'haiku' in clean_v.lower():
-            if PREFERRED_PROVIDER == "google" and SMALL_MODEL in GEMINI_MODELS:
-                new_model = f"gemini/{SMALL_MODEL}"
-            elif PREFERRED_PROVIDER == "groq" and SMALL_MODEL in GROQ_MODELS:
-                new_model = f"groq/{SMALL_MODEL}"
-            elif PREFERRED_PROVIDER == "moonshot" and SMALL_MODEL in MOONSHOT_MODELS:
-                new_model = f"moonshot/{SMALL_MODEL}"
-            else:
-                new_model = f"openai/{SMALL_MODEL}"
-            mapped = True
-
-        # Map Sonnet to BIG_MODEL based on provider preference
-        elif 'sonnet' in clean_v.lower():
-            if PREFERRED_PROVIDER == "google" and BIG_MODEL in GEMINI_MODELS:
-                new_model = f"gemini/{BIG_MODEL}"
-            elif PREFERRED_PROVIDER == "groq" and BIG_MODEL in GROQ_MODELS:
-                new_model = f"groq/{BIG_MODEL}"
-            elif PREFERRED_PROVIDER == "moonshot" and BIG_MODEL in MOONSHOT_MODELS:
-                new_model = f"moonshot/{BIG_MODEL}"
-            else:
-                new_model = f"openai/{BIG_MODEL}"
-            mapped = True
-
-        # Add prefixes to non-mapped models if they match known lists
-        elif not mapped:
-            if clean_v in GROQ_MODELS and not v.startswith('groq/'):
-                new_model = f"groq/{clean_v}"
-                mapped = True # Technically mapped to add prefix
-            elif clean_v in MOONSHOT_MODELS and not v.startswith('moonshot/'):
-                new_model = f"moonshot/{clean_v}"
-                mapped = True # Technically mapped to add prefix
-            elif clean_v in GEMINI_MODELS and not v.startswith('gemini/'):
-                new_model = f"gemini/{clean_v}"
-                mapped = True # Technically mapped to add prefix
-            elif clean_v in OPENAI_MODELS and not v.startswith('openai/'):
-                new_model = f"openai/{clean_v}"
-                mapped = True # Technically mapped to add prefix
-        # --- Mapping Logic --- END ---
-
-        if mapped:
-            logger.debug(f"📌 MODEL MAPPING: '{original_model}' ➡️ '{new_model}'")
+        
+        # 1. Determine the target model based on sonnet/haiku mapping from .env
+        if 'haiku' in v.lower():
+            target_model = SMALL_MODEL
+        elif 'sonnet' in v.lower():
+            target_model = BIG_MODEL
         else:
-             # If no mapping occurred and no prefix exists, log warning or decide default
-             if not v.startswith(('openai/', 'gemini/', 'anthropic/', 'groq/', 'moonshot/')):
-                 logger.warning(f"⚠️ No prefix or mapping rule for model: '{original_model}'. Using as is.")
-             new_model = v # Ensure we return the original if no rule applied
+            target_model = v  # Use the model name as-is if not sonnet/haiku
 
-        # Store the original model in the values dictionary
+        # 2. Add the correct provider prefix based on PREFERRED_PROVIDER and model lists
+        new_model = target_model  # Default to the target model
+        
+        # Check if we need to add a prefix
+        if target_model in GROQ_MODELS and not target_model.startswith('groq/'):
+            new_model = f"groq/{target_model}"
+        elif target_model in MOONSHOT_MODELS and not target_model.startswith('moonshot/'):
+            new_model = f"moonshot/{target_model}"
+        elif target_model in GEMINI_MODELS and not target_model.startswith('gemini/'):
+            new_model = f"gemini/{target_model}"
+        elif target_model in OPENAI_MODELS and not target_model.startswith('openai/'):
+            new_model = f"openai/{target_model}"
+
+        logger.debug(f"📌 MODEL MAPPING: '{original_model}' -> '{target_model}' -> '{new_model}'")
+        
+        # Store original model for later use
         values = info.data
         if isinstance(values, dict):
             values['original_model'] = original_model
-
+            
         return new_model
+
+
 
 class TokenCountRequest(BaseModel):
     model: str
@@ -324,83 +284,39 @@ class TokenCountRequest(BaseModel):
     original_model: Optional[str] = None  # Will store the original model name
     
     @field_validator('model')
-    def validate_model_token_count(cls, v, info): # Renamed to avoid conflict
-        # Use the same logic as MessagesRequest validator
-        # NOTE: Pydantic validators might not share state easily if not class methods
-        # Re-implementing the logic here for clarity, could be refactored
+    def validate_model_field(cls, v, info):
         original_model = v
-        new_model = v # Default to original value
-
-        logger.debug(f"📋 TOKEN COUNT VALIDATION: Original='{original_model}', Preferred='{PREFERRED_PROVIDER}', BIG='{BIG_MODEL}', SMALL='{SMALL_MODEL}'")
-
-        # Remove provider prefixes for easier matching
-        clean_v = v
-        if clean_v.startswith('anthropic/'):
-            clean_v = clean_v[10:]
-        elif clean_v.startswith('openai/'):
-            clean_v = clean_v[7:]
-        elif clean_v.startswith('gemini/'):
-            clean_v = clean_v[7:]
-        elif clean_v.startswith('groq/'):
-            clean_v = clean_v[5:]
-        elif clean_v.startswith('moonshot/'):
-            clean_v = clean_v[9:]
-
-        # --- Mapping Logic --- START ---
-        mapped = False
-        # Map Haiku to SMALL_MODEL based on provider preference
-        if 'haiku' in clean_v.lower():
-            if PREFERRED_PROVIDER == "google" and SMALL_MODEL in GEMINI_MODELS:
-                new_model = f"gemini/{SMALL_MODEL}"
-            elif PREFERRED_PROVIDER == "groq" and SMALL_MODEL in GROQ_MODELS:
-                new_model = f"groq/{SMALL_MODEL}"
-            elif PREFERRED_PROVIDER == "moonshot" and SMALL_MODEL in MOONSHOT_MODELS:
-                new_model = f"moonshot/{SMALL_MODEL}"
-            else:
-                new_model = f"openai/{SMALL_MODEL}"
-            mapped = True
-
-        # Map Sonnet to BIG_MODEL based on provider preference
-        elif 'sonnet' in clean_v.lower():
-            if PREFERRED_PROVIDER == "google" and BIG_MODEL in GEMINI_MODELS:
-                new_model = f"gemini/{BIG_MODEL}"
-            elif PREFERRED_PROVIDER == "groq" and BIG_MODEL in GROQ_MODELS:
-                new_model = f"groq/{BIG_MODEL}"
-            elif PREFERRED_PROVIDER == "moonshot" and BIG_MODEL in MOONSHOT_MODELS:
-                new_model = f"moonshot/{BIG_MODEL}"
-            else:
-                new_model = f"openai/{BIG_MODEL}"
-            mapped = True
-
-        # Add prefixes to non-mapped models if they match known lists
-        elif not mapped:
-            if clean_v in GROQ_MODELS and not v.startswith('groq/'):
-                new_model = f"groq/{clean_v}"
-                mapped = True # Technically mapped to add prefix
-            elif clean_v in MOONSHOT_MODELS and not v.startswith('moonshot/'):
-                new_model = f"moonshot/{clean_v}"
-                mapped = True # Technically mapped to add prefix
-            elif clean_v in GEMINI_MODELS and not v.startswith('gemini/'):
-                new_model = f"gemini/{clean_v}"
-                mapped = True # Technically mapped to add prefix
-            elif clean_v in OPENAI_MODELS and not v.startswith('openai/'):
-                new_model = f"openai/{clean_v}"
-                mapped = True # Technically mapped to add prefix
-        # --- Mapping Logic --- END ---
-
-        if mapped:
-            logger.debug(f"📌 TOKEN COUNT MAPPING: '{original_model}' ➡️ '{new_model}'")
+        
+        # 1. Determine the target model based on sonnet/haiku mapping from .env
+        if 'haiku' in v.lower():
+            target_model = SMALL_MODEL
+        elif 'sonnet' in v.lower():
+            target_model = BIG_MODEL
         else:
-             if not v.startswith(('openai/', 'gemini/', 'anthropic/', 'groq/', 'moonshot/')):
-                 logger.warning(f"⚠️ No prefix or mapping rule for token count model: '{original_model}'. Using as is.")
-             new_model = v # Ensure we return the original if no rule applied
+            target_model = v  # Use the model name as-is if not sonnet/haiku
 
-        # Store the original model in the values dictionary
+        # 2. Add the correct provider prefix based on PREFERRED_PROVIDER and model lists
+        new_model = target_model  # Default to the target model
+        
+        # Check if we need to add a prefix
+        if target_model in GROQ_MODELS and not target_model.startswith('groq/'):
+            new_model = f"groq/{target_model}"
+        elif target_model in MOONSHOT_MODELS and not target_model.startswith('moonshot/'):
+            new_model = f"moonshot/{target_model}"
+        elif target_model in GEMINI_MODELS and not target_model.startswith('gemini/'):
+            new_model = f"gemini/{target_model}"
+        elif target_model in OPENAI_MODELS and not target_model.startswith('openai/'):
+            new_model = f"openai/{target_model}"
+
+        logger.debug(f"📌 MODEL MAPPING: '{original_model}' -> '{target_model}' -> '{new_model}'")
+        
+        # Store original model for later use
         values = info.data
         if isinstance(values, dict):
             values['original_model'] = original_model
-
+            
         return new_model
+
 
 class TokenCountResponse(BaseModel):
     input_tokens: int
@@ -613,11 +529,15 @@ def convert_anthropic_to_litellm(anthropic_request: MessagesRequest) -> Dict[str
                 
                 messages.append({"role": msg.role, "content": processed_content})
     
-    # Cap max_tokens for OpenAI models to their limit of 16384
+    # Cap max_tokens for models with a lower limit (like OpenAI, Gemini, and Groq)
     max_tokens = anthropic_request.max_tokens
-    if anthropic_request.model.startswith("openai/") or anthropic_request.model.startswith("gemini/"):
+    if (
+        anthropic_request.model.startswith("openai/") or
+        anthropic_request.model.startswith("gemini/") or
+        anthropic_request.model.startswith("groq/")
+    ):
         max_tokens = min(max_tokens, 16384)
-        logger.debug(f"Capping max_tokens to 16384 for OpenAI/Gemini model (original value: {anthropic_request.max_tokens})")
+        logger.debug(f"Capping max_tokens to 16384 for {anthropic_request.model} (original value: {anthropic_request.max_tokens})")
     
     # Create LiteLLM request dict
     litellm_request = {
@@ -1184,23 +1104,17 @@ async def create_message(
         
         # Convert Anthropic request to LiteLLM format
         litellm_request = convert_anthropic_to_litellm(request)
-        
-        # Determine which API key to use based on the model
-        if request.model.startswith("openai/"):
-            litellm_request["api_key"] = OPENAI_API_KEY
-            logger.debug(f"Using OpenAI API key for model: {request.model}")
-        elif request.model.startswith("gemini/"):
-            litellm_request["api_key"] = GEMINI_API_KEY
-            logger.debug(f"Using Gemini API key for model: {request.model}")
-        elif request.model.startswith("groq/"):
-            litellm_request["api_key"] = GROQ_API_KEY
-            logger.debug(f"Using Groq API key for model: {request.model}")
-        elif request.model.startswith("moonshot/"):
-            litellm_request["api_key"] = MOONSHOT_API_KEY
-            logger.debug(f"Using Moonshot API key for model: {request.model}")
+    
+        # Set API key based on the provider prefix from the validated model name
+        provider = request.model.split('/')[0].upper()
+        api_key_name = f"{provider}_API_KEY"
+        api_key = os.getenv(api_key_name)
+        if api_key:
+            litellm_request["api_key"] = api_key
+            logger.debug(f"Using API key {api_key_name} for provider {provider}")
         else:
-            litellm_request["api_key"] = ANTHROPIC_API_KEY
-            logger.debug(f"Using Anthropic API key for model: {request.model}")
+            logger.warning(f"Could not find API key named {api_key_name}")
+
         
         # For non-Anthropic models - modify request format to work with limitations
         if not request.model.startswith("anthropic/") and "messages" in litellm_request:
@@ -1400,7 +1314,12 @@ async def create_message(
         # Check for LiteLLM-specific attributes
         for attr in ['message', 'status_code', 'response', 'llm_provider', 'model']:
             if hasattr(e, attr):
-                error_details[attr] = getattr(e, attr)
+                value = getattr(e, attr)
+                # FIX: Convert Response objects to string before logging
+                if "response" in attr and not isinstance(value, (str, int, dict, list, bool, type(None))):
+                    error_details[attr] = str(value)
+                else:
+                    error_details[attr] = value
         
         # Check for additional exception details in dictionaries
         if hasattr(e, '__dict__'):
@@ -1409,17 +1328,18 @@ async def create_message(
                     error_details[key] = str(value)
         
         # Log all error details
-        logger.error(f"Error processing request: {json.dumps(error_details, indent=2)}")
+        logger.error(f"Error processing request: {json.dumps(error_details, indent=2, default=str)}") # Added default=str as a fallback
         
         # Format error for response
         error_message = f"Error: {str(e)}"
         if 'message' in error_details and error_details['message']:
-            error_message += f"\nMessage: {error_details['message']}"
+            error_message += f"\nMessage: {str(error_details['message'])}"
         if 'response' in error_details and error_details['response']:
-            error_message += f"\nResponse: {error_details['response']}"
+            # Ensure the response part is also a string for the final HTTPException
+            error_message += f"\nResponse: {str(error_details['response'])}"
         
         # Return detailed error
-        status_code = error_details.get('status_code', 500)
+        status_code = getattr(e, 'status_code', 500)
         raise HTTPException(status_code=status_code, detail=error_message)
 
 @app.post("/v1/messages/count_tokens")
