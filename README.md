@@ -7,209 +7,192 @@ A proxy server that lets you use Anthropic clients with OpenAI, Gemini, Groq, or
 
 ![Anthropic API Proxy](pic.png)
 
-## Quick Start ⚡
+# Anthropic Universal API Proxy
+
+**Use Anthropic-compatible clients (like the `claude-code` CLI) with virtually any AI backend, including Groq, OpenAI, Google Gemini, and Moonshot AI.**
+
+This project acts as a powerful proxy server that intercepts API calls made to Anthropic's API, translates them, and intelligently routes them to the provider of your choice via LiteLLM. It's designed for maximum flexibility and customization.
+
+![Proxy Flow Diagram](https://raw.githubusercontent.com/JJsilvera1/claude-code-proxy/main/pic.png)
+
+---
+
+## Key Features
+
+*   **Multi-Provider Backend:** Swap between Groq, OpenAI, Google, and Moonshot AI by changing one line in your configuration.
+*   **Intelligent Model Mapping:** Automatically maps standard Anthropic model names (`sonnet`, `haiku`) to specific models on your chosen backend (e.g., map `sonnet` to Groq's `moonshotai/kimi-k2-instruct`).
+*   **Fully Configurable:** Easily override default model mappings using environment variables.
+*   **Extensible:** Designed to be easily edited to support new models and providers.
+*   **Full API Emulation:** Supports streaming, tool use, and token counting, providing a seamless experience for Anthropic clients.
+
+---
+
+## ⚡ Quick Start
+
+This guide will get you running in minutes. The primary example uses **Groq** to run the **Moonshot AI** model, as it offers incredible performance.
 
 ### Prerequisites
 
-- OpenAI API key 🔑
-- Google AI Studio (Gemini) API key (if using Google provider) 🔑
-- Groq API key (if using Groq provider) 🔑
-- Moonshot AI API key (if using Moonshot provider) 🔑
-- [uv](https://github.com/astral-sh/uv) installed.
+*   **Python 3.10+** and `git`.
+*   **API Keys** for the services you want to use (e.g., [Groq](https://console.groq.com/keys)).
+*   **[uv](https://github.com/astral-sh/uv):** An extremely fast Python package installer.
 
-### Setup 🛠️
+### 1. Setup
 
-1. **Clone this repository**:
-   ```bash
-   git clone https://github.com/1rgs/claude-code-openai.git
-   cd claude-code-openai
-   ```
+First, clone the repository and navigate into the project directory.
 
-2. **Install uv** (if you haven't already):
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-   *(`uv` will handle dependencies based on `pyproject.toml` when you run the server)*
-
-3. **Configure Environment Variables**:
-   Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` and fill in your API keys and model configurations:
-
-   *   `ANTHROPIC_API_KEY`: (Optional) Needed only if proxying *to* Anthropic models.
-   *   `OPENAI_API_KEY`: Your OpenAI API key (Required if using the default OpenAI preference or as fallback).
-   *   `GEMINI_API_KEY`: Your Google AI Studio (Gemini) API key (Required if PREFERRED_PROVIDER=google).
-   *   `GROQ_API_KEY`: Your Groq API key (Required if PREFERRED_PROVIDER=groq).
-   *   `MOONSHOT_API_KEY`: Your Moonshot AI API key (Required if PREFERRED_PROVIDER=moonshot).
-   *   `PREFERRED_PROVIDER` (Optional): Set to `openai` (default), `google`, `groq`, or `moonshot`. This determines the primary backend for mapping `haiku`/`sonnet`.
-   *   `BIG_MODEL` (Optional): The model to map `sonnet` requests to. Defaults vary by provider - see mapping logic below.
-   *   `SMALL_MODEL` (Optional): The model to map `haiku` requests to. Defaults vary by provider - see mapping logic below.
-
-   **Mapping Logic:**
-   - If `PREFERRED_PROVIDER=openai` (default), `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` (defaults: `gpt-4.1-mini`/`gpt-4.1`) prefixed with `openai/`.
-   - If `PREFERRED_PROVIDER=google`, `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` (defaults: `gemini-2.0-flash`/`gemini-2.5-pro-preview-03-25`) prefixed with `gemini/`.
-   - If `PREFERRED_PROVIDER=groq`, `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` (defaults: `llama-3.1-8b-instant`/`llama-3.3-70b-versatile`) prefixed with `groq/`.
-   - If `PREFERRED_PROVIDER=moonshot`, `haiku`/`sonnet` map to `SMALL_MODEL`/`BIG_MODEL` (defaults: `kimi-k2-base`/`kimi-k2-instruct`) prefixed with `moonshot/`.
-
-4. **Run the server**:
-   ```bash
-   uv run uvicorn server:app --host 0.0.0.0 --port 8082 --reload
-   ```
-   *(`--reload` is optional, for development)*
-
-### Using with Claude Code 🎮
-
-1. **Install Claude Code** (if you haven't already):
-   ```bash
-   npm install -g @anthropic-ai/claude-code
-   ```
-
-2. **Connect to your proxy**:
-   ```bash
-   ANTHROPIC_BASE_URL=http://localhost:8082 claude
-   ```
-
-3. **That's it!** Your Claude Code client will now use the configured backend models (defaulting to OpenAI) through the proxy. 🎯
-
-## Model Mapping 🗺️
-
-The proxy automatically maps Claude models to OpenAI, Gemini, Groq, or Moonshot models based on the configured provider:
-
-| Claude Model | OpenAI (default) | Google | Groq | Moonshot |
-|--------------|------------------|--------|------|----------|
-| haiku | openai/gpt-4.1-mini | gemini/gemini-2.0-flash | groq/llama-3.1-8b-instant | moonshot/kimi-k2-base |
-| sonnet | openai/gpt-4.1 | gemini/gemini-2.5-pro-preview-03-25 | groq/llama-3.3-70b-versatile | moonshot/kimi-k2-instruct |
-
-### Supported Models
-
-#### OpenAI Models
-The following OpenAI models are supported with automatic `openai/` prefix handling:
-- o3-mini
-- o1
-- o1-mini
-- o1-pro
-- gpt-4.5-preview
-- gpt-4o
-- gpt-4o-audio-preview
-- chatgpt-4o-latest
-- gpt-4o-mini
-- gpt-4o-mini-audio-preview
-- gpt-4.1
-- gpt-4.1-mini
-
-#### Gemini Models
-The following Gemini models are supported with automatic `gemini/` prefix handling:
-- gemini-2.5-pro-preview-03-25
-- gemini-2.0-flash
-
-#### Groq Models  
-The following Groq models are supported with automatic `groq/` prefix handling:
-- llama-3.3-70b-versatile (Production)
-- llama-3.1-8b-instant (Production) 
-- llama3-70b-8192 (Production)
-- llama3-8b-8192 (Production)
-- gemma2-9b-it (Production)
-- whisper-large-v3 (Production - Audio)
-- whisper-large-v3-turbo (Production - Audio)
-- distil-whisper-large-v3-en (Production - Audio)
-- llama-guard-3-8b (Production - Safety)
-- meta-llama/llama-4-scout-17b-16e-instruct (Preview)
-- meta-llama/llama-4-maverick-17b-128e-instruct (Preview)
-- qwen-qwq-32b (Preview)
-- qwen-2.5-coder-32b (Preview)
-- qwen-2.5-32b (Preview)
-- deepseek-r1-distill-qwen-32b (Preview)
-- deepseek-r1-distill-llama-70b (Preview)
-- mistral-saba-24b (Preview)
-- llama-3.2-1b-preview (Preview)
-- llama-3.2-3b-preview (Preview)
-- llama-3.2-11b-vision-preview (Preview - Vision)
-- llama-3.2-90b-vision-preview (Preview - Vision)
-- llama-3.3-70b-specdec (Preview)
-
-#### Moonshot AI (Kimi K2) Models
-The following Moonshot models are supported with automatic `moonshot/` prefix handling:
-- kimi-k2-base
-- kimi-k2-instruct
-
-### Model Prefix Handling
-The proxy automatically adds the appropriate prefix to model names:
-- OpenAI models get the `openai/` prefix 
-- Gemini models get the `gemini/` prefix
-- Groq models get the `groq/` prefix
-- Moonshot models get the `moonshot/` prefix
-- The BIG_MODEL and SMALL_MODEL will get the appropriate prefix based on which model list they're in
-
-For example:
-- `gpt-4.1` becomes `openai/gpt-4.1`
-- `gemini-2.5-pro-preview-03-25` becomes `gemini/gemini-2.5-pro-preview-03-25`
-- `llama-3.3-70b-versatile` becomes `groq/llama-3.3-70b-versatile`
-- `kimi-k2-instruct` becomes `moonshot/kimi-k2-instruct`
-- When BIG_MODEL is set to a specific provider's model, Claude Sonnet will map to `[provider]/[model-name]`
-
-### Customizing Model Mapping
-
-Control the mapping using environment variables in your `.env` file or directly:
-
-**Example 1: Default (Use OpenAI)**
-No changes needed in `.env` beyond API keys, or ensure:
-```dotenv
-OPENAI_API_KEY="your-openai-key"
-GEMINI_API_KEY="your-google-key" # Needed if PREFERRED_PROVIDER=google
-# PREFERRED_PROVIDER="openai" # Optional, it's the default
-# BIG_MODEL="gpt-4.1" # Optional, it's the default
-# SMALL_MODEL="gpt-4.1-mini" # Optional, it's the default
+```bash
+git clone https://github.com/JJsilvera1/claude-code-proxy.git
+cd claude-code-proxy
 ```
 
-**Example 2: Prefer Google**
-```dotenv
-GEMINI_API_KEY="your-google-key"
-OPENAI_API_KEY="your-openai-key" # Needed for fallback
-PREFERRED_PROVIDER="google"
-# BIG_MODEL="gemini-2.5-pro-preview-03-25" # Optional, it's the default for Google pref
-# SMALL_MODEL="gemini-2.0-flash" # Optional, it's the default for Google pref
+If you don't have `uv`, install it:
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (in PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-**Example 3: Use Groq Models**
+### 2. Configuration
+
+The server is configured using a `.env` file. Create one by copying the example:
+
+```bash
+cp .env.example .env
+```
+
+Now, edit the `.env` file. Below is the recommended configuration for using Groq's high-performance `moonshotai/kimi-k2-instruct` model.
+
+**File: `.env`**
 ```dotenv
-GROQ_API_KEY="your-groq-key"
-OPENAI_API_KEY="your-openai-key" # Needed for fallback
+# --- Provider and API Key ---
+# Set the preferred provider to "groq".
 PREFERRED_PROVIDER="groq"
-# BIG_MODEL="llama-3.3-70b-versatile" # Optional, it's the default for Groq
-# SMALL_MODEL="llama-3.1-8b-instant" # Optional, it's the default for Groq
+# Add your Groq API key.
+GROQ_API_KEY="gsk_YourActualGroqApiKeyGoesHere"
+
+# --- Model Mapping ---
+# Map the powerful "sonnet" model to Groq's hosted Moonshot model.
+BIG_MODEL="moonshotai/kimi-k2-instruct"
+# Map the fast "haiku" model to Groq's Llama3.1 model.
+SMALL_MODEL="llama-3.1-8b-instant"
+
+# --- Optional Keys for Other Providers ---
+# OPENAI_API_KEY="sk-..."
+# MOONSHOT_API_KEY="sk-..."
+# GEMINI_API_KEY="..."
 ```
 
-**Example 4: Use Moonshot AI Models**
-```dotenv
-MOONSHOT_API_KEY="your-moonshot-key"
-OPENAI_API_KEY="your-openai-key" # Needed for fallback
-PREFERRED_PROVIDER="moonshot"
-# BIG_MODEL="kimi-k2-instruct" # Optional, it's the default for Moonshot
-# SMALL_MODEL="kimi-k2-base" # Optional, it's the default for Moonshot
+### 3. Run the Server
+
+Start the proxy server. `uv` will automatically handle all dependencies. We include a long timeout to prevent errors with slower, more powerful models.
+
+```bash
+uv run uvicorn server:app --host 0.0.0.0 --port 8082 --reload --timeout-keep-alive 300
 ```
 
-**Example 5: Use Specific OpenAI Models**
+If successful, you'll see: `Uvicorn running on http://0.0.0.0:8082`. Your proxy is now live!
+
+### 4. Connect Your Client (e.g., `claude-code`)
+
+1.  **Install the client** (if you haven't already):
+    ```bash
+    npm install -g @anthropic-ai/claude-code
+    ```
+2.  **Connect it to your proxy.** Open a **new terminal** and run the appropriate command for your system.
+
+    **For macOS / Linux:**
+    ```bash
+    ANTHROPIC_BASE_URL=http://localhost:8082 claude
+    ```
+
+    **For Windows PowerShell:**
+    ```powershell
+    $env:ANTHROPIC_BASE_URL="http://localhost:8082"; claude
+    ```
+
+That's it! Your `claude` client is now supercharged by Groq. Watch the server logs in your other terminal to see the model mapping in real-time.
+
+---
+
+## 🧩 How It Works: The Internals
+
+Understanding the logic inside `server.py` is key to customizing the proxy. A request flows through these main stages:
+
+1.  **Request Interception (FastAPI):**
+    *   The `@app.post("/v1/messages")` decorator catches any incoming requests to the messages API endpoint.
+
+2.  **Model Validation and Mapping (`validate_model_field`):**
+    *   This is the core of the routing logic, located inside the `MessagesRequest` Pydantic model.
+    *   **Step 1:** It checks if the incoming model name is `sonnet` or `haiku`. If so, it replaces it with the `BIG_MODEL` or `SMALL_MODEL` value from your `.env` file. (e.g., `sonnet` becomes `moonshotai/kimi-k2-instruct`).
+    *   **Step 2:** It checks which provider this target model belongs to by looking in the `GROQ_MODELS`, `OPENAI_MODELS`, etc., lists.
+    *   **Step 3:** It prepends the correct provider prefix for LiteLLM (e.g., `moonshotai/kimi-k2-instruct` becomes `groq/moonshotai/kimi-k2-instruct`).
+
+3.  **Payload Conversion (`convert_anthropic_to_litellm`):**
+    *   This function translates the Anthropic-formatted request (with its unique content blocks) into the standard OpenAI format that LiteLLM and most other providers expect. It also caps the `max_tokens` value to prevent errors with providers like Groq.
+
+4.  **API Key Injection:**
+    *   Right before the final call, the code inspects the provider prefix (e.g., `groq/`) on the model name and attaches the corresponding API key (`GROQ_API_KEY`) to the request.
+
+5.  **Backend Call (LiteLLM):**
+    *   `litellm.completion()` is called. LiteLLM handles the final API call to the correct provider (e.g., Groq).
+
+6.  **Response Conversion (`convert_litellm_to_anthropic`):**
+    *   The response from the backend is translated back into the Anthropic API format before being sent to the client.
+
+---
+
+## 🛠️ Customization Guide
+
+### Changing Model Mapping
+
+The easiest way to customize the proxy is by editing your `.env` file.
+
+**Example: Use OpenAI's `gpt-4o` and `gpt-4o-mini`**
 ```dotenv
-OPENAI_API_KEY="your-openai-key"
 PREFERRED_PROVIDER="openai"
-BIG_MODEL="gpt-4o" # Example specific model
-SMALL_MODEL="gpt-4o-mini" # Example specific model
+OPENAI_API_KEY="sk-YourOpenAIKeyHere"
+
+BIG_MODEL="gpt-4o"
+SMALL_MODEL="gpt-4o-mini"
 ```
 
-## How It Works 🧩
+### Adding a New Model
 
-This proxy works by:
+To make the proxy aware of a new model released by a provider:
 
-1. **Receiving requests** in Anthropic's API format 📥
-2. **Translating** the requests to the target provider format via LiteLLM 🔄
-3. **Sending** the translated request to OpenAI, Gemini, Groq, or Moonshot 📤
-4. **Converting** the response back to Anthropic format 🔄
-5. **Returning** the formatted response to the client ✅
+1.  Open `server.py`.
+2.  Find the provider's model list (e.g., `GROQ_MODELS`).
+3.  Add the new model's exact name to the list.
 
-The proxy handles both streaming and non-streaming responses, maintaining compatibility with all Claude clients. 🌊
+**Example: Add a new preview model to Groq**
+```python
+# server.py
 
-## Contributing 🤝
+GROQ_MODELS = [
+    # ... other models
+    "llama-3.3-70b-versatile",
+    "new-experimental-model-v1"  # <-- Add the new model here
+]
+```
+4.  You can now set `BIG_MODEL="new-experimental-model-v1"` in your `.env` file.
 
-Contributions are welcome! Please feel free to submit a Pull Request. 🎁
+---
+
+## 🚑 Troubleshooting
+
+*   **Timeout Errors:** If you see timeout errors in your client, it means the model is taking too long to respond. Restart the server with a longer timeout:
+    `uv run uvicorn server:app --reload --timeout-keep-alive 300`
+
+*   **AuthenticationError (401):** This means your API key is wrong or missing. Double-check the key in your `.env` file for the provider being called (check the server logs).
+
+*   **Model Not Found (404):** This means the backend provider doesn't recognize the model name.
+    1.  Ensure the model name in your `.env` (`BIG_MODEL`/`SMALL_MODEL`) is spelled exactly right.
+    2.  Ensure the model name is included in the correct provider list (`GROQ_MODELS`, etc.) in `server.py`.
+
+*   **PowerShell Command Errors:** If you're on Windows, you cannot set environment variables on the same line. Use the correct syntax:
+    `$env:ANTHROPIC_BASE_URL="http://localhost:8082"; claude`
+
+## 🤝 Contributing
